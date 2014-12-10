@@ -53,7 +53,7 @@ dtls_hmac_context_free(dtls_hmac_context_t *ctx) {
 }
 
 #else /* WITH_CONTIKI */
-#include "memb.h"
+
 MEMB(hmac_context_storage, dtls_hmac_context_t, DTLS_HASH_MAX);
 
 static inline dtls_hmac_context_t *

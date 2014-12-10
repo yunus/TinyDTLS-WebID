@@ -36,7 +36,7 @@
 # ifndef DEBUG
 #  define DEBUG DEBUG_PRINT
 # endif /* DEBUG */
-#include "net/ip/uip-debug.h"
+#include "net/uip-debug.h"
 
 #ifdef CONTIKI_TARGET_MBXXX
 extern char __Stack_Init, _estack;

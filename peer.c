@@ -46,7 +46,7 @@ dtls_free_peer(dtls_peer_t *peer) {
 }
 #else /* WITH_CONTIKI */
 
-#include "memb.h"
+
 MEMB(peer_storage, dtls_peer_t, DTLS_PEER_MAX);
 
 void

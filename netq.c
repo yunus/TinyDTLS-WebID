@@ -37,7 +37,7 @@ netq_free_node(netq_t *node) {
 /* FIXME: implement Contiki's list functions using utlist.h */
 
 #else /* WITH_CONTIKI */
-#include "memb.h"
+
 
 MEMB(netq_storage, netq_t, NETQ_MAXCNT);
 

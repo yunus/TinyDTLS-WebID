@@ -94,7 +94,7 @@ static void dtls_security_dealloc(dtls_security_parameters_t *security) {
 }
 #else /* WITH_CONTIKI */
 
-#include "memb.h"
+
 MEMB(handshake_storage, dtls_handshake_parameters_t, DTLS_HANDSHAKE_MAX);
 MEMB(security_storage, dtls_security_parameters_t, DTLS_SECURITY_MAX);
 

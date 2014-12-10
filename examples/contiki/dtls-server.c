@@ -42,7 +42,7 @@
 #ifndef DEBUG
 #define DEBUG DEBUG_PRINT
 #endif
-#include "net/ip/uip-debug.h"
+#include "net/uip-debug.h"
 
 #include "debug.h"
 #include "dtls.h"

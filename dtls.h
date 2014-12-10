@@ -40,7 +40,6 @@
 
 #ifndef WITH_CONTIKI
 #include "uthash.h"
-#include "t_list.h"
 #endif /* WITH_CONTIKI */
 
 #include "alert.h"

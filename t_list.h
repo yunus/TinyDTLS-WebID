@@ -140,7 +140,7 @@ list_item_next(void *item)
 }
 
 #else /* WITH_CONTIKI */
-#include "list.h"
+#include "lib/list.h"
 #endif /* WITH_CONTIKI */
 
 #endif /* _DTLS_LIST_H_ */
