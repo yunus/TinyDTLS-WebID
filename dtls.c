@@ -81,6 +81,8 @@
 #define DTLS_SKEXEC_LENGTH (1 + 2 + 1 + 1 + DTLS_EC_KEY_SIZE + DTLS_EC_KEY_SIZE + 1 + 1 + 2 + 70)
 #define DTLS_SKEXECPSK_LENGTH_MIN 2
 #define DTLS_SKEXECPSK_LENGTH_MAX 2 + DTLS_PSK_MAX_CLIENT_IDENTITY_LEN
+#define DTLS_WEBID_PKT_LENGTH_MIN 2
+#define DTLS_WEBID_PKT_LENGTH_MAX 2 + DTLS_WEBID_MAX_URI_LENGTH
 #define DTLS_CKXPSK_LENGTH_MIN 2
 #define DTLS_CKXEC_LENGTH (1 + 1 + DTLS_EC_KEY_SIZE + DTLS_EC_KEY_SIZE)
 #define DTLS_CV_LENGTH (1 + 1 + 2 + 1 + 1 + 1 + 1 + DTLS_EC_KEY_SIZE + 1 + 1 + DTLS_EC_KEY_SIZE)
@@ -587,6 +589,8 @@ static char *dtls_handshake_type_to_name(int type)
     return "client_key_exchange";
   case DTLS_HT_FINISHED:
     return "finished";
+  case DTLS_HT_WEBID_URI:
+	return "webid_uri";
   default:
     return "unknown";
   }
@@ -1070,6 +1074,7 @@ static inline void
 update_hs_hash(dtls_peer_t *peer, uint8 *data, size_t length) {
   dtls_debug_dump("add MAC data", data, length);
   dtls_hash_update(&peer->handshake_params->hs_state.hs_hash, data, length);
+  dtls_debug_dump("dtls-webid: new hash",peer->handshake_params->hs_state.hs_hash.buffer,SHA256_BLOCK_LENGTH);
 }
 
 static void
@@ -1830,6 +1835,44 @@ dtls_send_server_hello(dtls_context_t *ctx, dtls_peer_t *peer)
 }
 
 #ifdef DTLS_ECC
+
+#ifdef DTLS_WEBID
+
+static int
+dtls_send_webid_uri(dtls_context_t *ctx, dtls_peer_t *peer,
+			    const dtls_ecdsa_key_t *key)
+{
+
+	uint8 buf[DTLS_WEBID_PKT_LENGTH_MAX];
+	uint8 *p;
+	int uri_len = strlen(key->webid_uri);
+
+	p = buf;
+
+	  assert(uri_len <= DTLS_WEBID_MAX_URI_LENGTH);
+	  if (uri_len > DTLS_WEBID_MAX_URI_LENGTH) {
+	    /* should never happen */
+	    dtls_warn("dtls-webid: webid URI is too long: %u\n",uri_len);
+	    return dtls_alert_fatal_create(DTLS_ALERT_INTERNAL_ERROR);
+	  }
+
+	  dtls_int_to_uint16(p, uri_len);
+	  p += sizeof(uint16);
+
+	  memcpy(p, key->webid_uri, uri_len);
+	  p += uri_len;
+
+	  assert(p - buf <= sizeof(buf));
+
+	  dtls_debug("dtls-webid: dtls_webid sending uri|%s|, uri_length:%d-%d\n",key->webid_uri,uri_len,dtls_uint16_to_int(buf));
+
+	  return dtls_send_handshake_msg(ctx, peer, DTLS_HT_WEBID_URI,
+					 buf, p - buf);
+
+}
+
+#endif /* DTLS_WEBID */
+
 static int
 dtls_send_certificate_ecdsa(dtls_context_t *ctx, dtls_peer_t *peer,
 			    const dtls_ecdsa_key_t *key)
@@ -2090,6 +2133,13 @@ dtls_send_server_hello_msgs(dtls_context_t *ctx, dtls_peer_t *peer)
       dtls_crit("no ecdsa certificate to send in certificate\n");
       return res;
     }
+#ifdef DTLS_WEBID
+    res = dtls_send_webid_uri(ctx, peer, ecdsa_key);
+    if (res < 0) {
+         dtls_debug("dtls_server_hello: cannot prepare WebID URI message\n");
+         return res;
+     }
+#endif /* DTLS_WEBID */
 
     res = dtls_send_certificate_ecdsa(ctx, peer, ecdsa_key);
 
@@ -2591,7 +2641,12 @@ check_server_certificate(dtls_context_t *ctx,
   err = CALL(ctx, verify_ecdsa_key, &peer->session,
 	     config->keyx.ecdsa.other_pub_x,
 	     config->keyx.ecdsa.other_pub_y,
-	     sizeof(config->keyx.ecdsa.other_pub_x));
+	     sizeof(config->keyx.ecdsa.other_pub_x)
+#ifdef DTLS_WEBID
+	     , config->keyx.ecdsa.webid_uri.webid_uri,
+	     config->keyx.ecdsa.webid_uri.uri_length
+#endif
+	     );
   if (err < 0) {
     dtls_warn("The certificate was not accepted\n");
     return err;
@@ -2599,6 +2654,50 @@ check_server_certificate(dtls_context_t *ctx,
 
   return 0;
 }
+
+#ifdef DTLS_WEBID
+static int
+check_webid_exchange(dtls_context_t *ctx,
+			      dtls_peer_t *peer,
+			      uint8 *data, size_t data_length)
+{
+  dtls_handshake_parameters_t *config = peer->handshake_params;
+  size_t len;
+
+  update_hs_hash(peer, data, data_length);
+
+  assert(is_tls_ecdhe_ecdsa_with_aes_128_ccm_8(config->cipher));
+
+  data += DTLS_HS_LENGTH;
+
+  if (data_length < DTLS_HS_LENGTH + DTLS_WEBID_PKT_LENGTH_MIN) {
+    dtls_alert("dtls-webid: the packet length does not match the expected\n");
+    return dtls_alert_fatal_create(DTLS_ALERT_DECODE_ERROR);
+  }
+
+  len = (size_t)dtls_uint16_to_int(data);
+  data += sizeof(uint16);
+
+  if (len != data_length - DTLS_HS_LENGTH - sizeof(uint16)) {
+    dtls_warn("dtls-webid: the length (%u) of the WebID URI is wrong\n",len);
+    return dtls_alert_fatal_create(DTLS_ALERT_DECODE_ERROR);
+  }
+
+  if (len > DTLS_WEBID_MAX_URI_LENGTH) {
+    dtls_warn("dtls-webid: please use a shorter WebID URI max: %d\n",DTLS_WEBID_MAX_URI_LENGTH);
+    return dtls_alert_fatal_create(DTLS_ALERT_INTERNAL_ERROR);
+  }
+
+  /* store the webid uri for later use */
+  config->keyx.ecdsa.webid_uri.uri_length = len;
+  memcpy(config->keyx.ecdsa.webid_uri.webid_uri, data, len);
+
+  unsigned char webid_uri[len];
+  memcpy(webid_uri,config->keyx.ecdsa.webid_uri.webid_uri,len);
+  dtls_debug("dtls-webid: The WebID URI is |%s| with length:%u\n",webid_uri,len);
+  return 0;
+}
+#endif /* DTLS_WEBID */
 
 static int
 check_server_key_exchange_ecdsa(dtls_context_t *ctx,
@@ -2825,10 +2924,19 @@ check_server_hellodone(dtls_context_t *ctx,
       return res;
     }
 
+#ifdef DTLS_WEBID
+    res = dtls_send_webid_uri(ctx,peer,ecdsa_key);
+    if (res < 0) {
+          dtls_debug("dtls_server_hello_done: cannot prepare WebID uri\n");
+          return res;
+    }
+
+#endif /* DTLS_WEBID */
+
     res = dtls_send_certificate_ecdsa(ctx, peer, ecdsa_key);
 
     if (res < 0) {
-      dtls_debug("dtls_server_hello: cannot prepare Certificate record\n");
+      dtls_debug("dtls_server_hello_done: cannot prepare Certificate record\n");
       return res;
     }
   }
@@ -3039,15 +3147,46 @@ handle_handshake_msg(dtls_context_t *ctx, dtls_peer_t *peer, session_t *session,
       dtls_warn("error in check_server_hello err: %i\n", err);
       return err;
     }
-    if (is_tls_ecdhe_ecdsa_with_aes_128_ccm_8(peer->handshake_params->cipher))
-      peer->state = DTLS_STATE_WAIT_SERVERCERTIFICATE;
-    else
+    if (is_tls_ecdhe_ecdsa_with_aes_128_ccm_8(peer->handshake_params->cipher)){
+#ifdef DTLS_WEBID
+    	peer->state = DTLS_STATE_WAIT_SERVERWEBID_URI;
+#else
+    	peer->state = DTLS_STATE_WAIT_SERVERCERTIFICATE;
+#endif
+
+    }else
       peer->state = DTLS_STATE_WAIT_SERVERHELLODONE;
     /* update_hs_hash(peer, data, data_length); */
 
     break;
 
+
 #ifdef DTLS_ECC
+
+#ifdef DTLS_WEBID
+  case DTLS_HT_WEBID_URI:
+	  if ((role == DTLS_CLIENT && state != DTLS_STATE_WAIT_SERVERWEBID_URI) ||
+			  (role == DTLS_SERVER && state != DTLS_STATE_WAIT_CLIENTWEBID_URI)) {
+		  return dtls_alert_fatal_create(DTLS_ALERT_UNEXPECTED_MESSAGE);
+	  }
+	  /*save the webid URI*/
+	  err = check_webid_exchange(ctx, peer, data, data_length);
+	  if (err < 0) {
+		  dtls_warn("error in check_webid_exchange err: %i\n", err);
+		  return err;
+	  }
+
+	  if (role == DTLS_CLIENT) {
+		  peer->state = DTLS_STATE_WAIT_SERVERCERTIFICATE;
+	  } else if (role == DTLS_SERVER){
+		  peer->state = DTLS_STATE_WAIT_CLIENTCERTIFICATE;
+	  }
+
+	  /* update_hs_hash(peer, data, data_length); */
+	  break;
+#endif /* DTLS_WEBID */
+
+
   case DTLS_HT_CERTIFICATE:
 
     if ((role == DTLS_CLIENT && state != DTLS_STATE_WAIT_SERVERCERTIFICATE) ||
@@ -3293,9 +3432,13 @@ handle_handshake_msg(dtls_context_t *ctx, dtls_peer_t *peer, session_t *session,
       return err;
     }
     if (is_tls_ecdhe_ecdsa_with_aes_128_ccm_8(peer->handshake_params->cipher) &&
-	is_ecdsa_client_auth_supported(ctx))
+	is_ecdsa_client_auth_supported(ctx)){
+#ifdef DTLS_WEBID
+      peer->state = DTLS_STATE_WAIT_CLIENTWEBID_URI;
+#else
       peer->state = DTLS_STATE_WAIT_CLIENTCERTIFICATE;
-    else
+#endif /* DTLS_WEBID */
+    }else
       peer->state = DTLS_STATE_WAIT_CLIENTKEYEXCHANGE;
 
     /* after sending the ServerHelloDone, we expect the

@@ -78,6 +78,15 @@ static const unsigned char ecdsa_pub_key_y[] = {
 			0xD0, 0x43, 0xB1, 0xFB, 0x03, 0xE2, 0x2F, 0x4D,
 			0x17, 0xDE, 0x43, 0xF9, 0xF9, 0xAD, 0xEE, 0x70};
 
+
+/*
+ * For URIs shorter the better upper limit is '50' see DTLS_WEBID_MAX_URI_LENGTH.
+ * the uri by default starts with https:// so omitted,
+ * If another prefix/protocol is required, that protocol should be added to the uri such as coaps://example.com/...
+ * */
+static const unsigned char webid_uri[] = "example.com/point/to/the/resource";
+
+
 static int
 read_from_peer(struct dtls_context_t *ctx, 
 	       session_t *session, uint8 *data, size_t len) {
@@ -169,6 +178,9 @@ get_ecdsa_key(struct dtls_context_t *ctx,
     .priv_key = ecdsa_priv_key,
     .pub_key_x = ecdsa_pub_key_x,
     .pub_key_y = ecdsa_pub_key_y
+#ifdef DTLS_WEBID
+    , .webid_uri = webid_uri
+#endif
   };
 
   *result = &ecdsa_key;
@@ -180,7 +192,19 @@ verify_ecdsa_key(struct dtls_context_t *ctx,
 		 const session_t *session,
 		 const unsigned char *other_pub_x,
 		 const unsigned char *other_pub_y,
-		 size_t key_size) {
+		 size_t key_size
+#ifdef DTLS_WEBID
+	     , const unsigned char *webid_uri,
+		 size_t webid_uri_size
+#endif
+		 ) {
+#ifdef DTLS_WEBID
+  unsigned char uri[webid_uri_size+1];
+  memcpy(uri,webid_uri,webid_uri_size);
+  uri[webid_uri_size]='\0';
+
+  printf("dtls-webid: In verify ecdsa the uri is -%s- with length:%d\n",uri,webid_uri_size);
+#endif
   return 0;
 }
 #endif /* DTLS_ECC */

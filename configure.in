@@ -63,6 +63,12 @@ AC_ARG_WITH(ecc,
    OPT_OBJS="${OPT_OBJS} ecc/ecc.o"
    DTLS_ECC=1])
 
+AC_ARG_WITH(webid,
+  [AS_HELP_STRING([--with-webid],[enable support for WEBID])],
+  [AC_DEFINE(DTLS_WEBID, 1, [Define to 1 if building with WEBID support.])
+   DTLS_WEBID=1],
+  [])
+
 AC_ARG_WITH(psk,
   [AS_HELP_STRING([--without-psk],[disable support for TLS_PSK_WITH_AES_128_CCM_8])],
   [],

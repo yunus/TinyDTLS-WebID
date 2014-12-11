@@ -76,12 +76,24 @@ typedef struct dtls_cipher_context_t {
   aes128_ccm_t data;		/**< The crypto context */
 } dtls_cipher_context_t;
 
+#ifdef DTLS_WEBID
+#define DTLS_WEBID_MAX_URI_LENGTH 50
+typedef struct {
+  uint16_t uri_length;
+  unsigned char webid_uri[DTLS_WEBID_MAX_URI_LENGTH];
+} dtls_handshake_parameters_webid_t;
+#endif /* DTLS_WEBID */
+
+
 typedef struct {
   uint8 own_eph_priv[32];
   uint8 other_eph_pub_x[32];
   uint8 other_eph_pub_y[32];
   uint8 other_pub_x[32];
   uint8 other_pub_y[32];
+#ifdef DTLS_WEBID
+    dtls_handshake_parameters_webid_t webid_uri;
+#endif /* DTLS_WEBID */
 } dtls_handshake_parameters_ecdsa_t;
 
 /* This is the maximal supported length of the psk client identity and psk
@@ -95,6 +107,8 @@ typedef struct {
   uint16_t id_length;
   unsigned char identity[DTLS_PSK_MAX_CLIENT_IDENTITY_LEN];
 } dtls_handshake_parameters_psk_t;
+
+
 
 typedef struct {
   dtls_compression_t compression;	/**< compression method */
@@ -128,9 +142,11 @@ typedef struct {
   dtls_cipher_t cipher;		/**< cipher type */
   unsigned int do_client_auth:1;
   union {
+
 #ifdef DTLS_ECC
     dtls_handshake_parameters_ecdsa_t ecdsa;
 #endif /* DTLS_ECC */
+
 #ifdef DTLS_PSK
     dtls_handshake_parameters_psk_t psk;
 #endif /* DTLS_PSK */

@@ -64,6 +64,9 @@ typedef struct dtls_ecdsa_key_t {
   const unsigned char *priv_key;	/** < private key as bytes > */
   const unsigned char *pub_key_x;	/** < x part of the public key for the given private key > */
   const unsigned char *pub_key_y;	/** < y part of the public key for the given private key > */
+#ifdef DTLS_WEBID
+  const unsigned char *webid_uri;
+#endif
 } dtls_ecdsa_key_t;
 
 /** Length of the secret that is used for generating Hello Verify cookies. */
@@ -214,7 +217,12 @@ typedef struct {
 			  const session_t *session,
 			  const unsigned char *other_pub_x,
 			  const unsigned char *other_pub_y,
-			  size_t key_size);
+			  size_t key_size
+#ifdef DTLS_WEBID
+			  , const unsigned char *webid_uri,
+			  size_t webid_uri_size
+#endif
+			  );
 #endif /* DTLS_ECC */
 } dtls_handler_t;
 
@@ -349,6 +357,7 @@ typedef struct __attribute__((__packed__)) {
 #define DTLS_HT_CERTIFICATE_VERIFY  15
 #define DTLS_HT_CLIENT_KEY_EXCHANGE 16
 #define DTLS_HT_FINISHED            20
+#define DTLS_HT_WEBID_URI			30
 
 /** Header structure for the DTLS handshake protocol. */
 typedef struct __attribute__((__packed__)) {

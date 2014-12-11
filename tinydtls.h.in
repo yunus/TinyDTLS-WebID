@@ -41,4 +41,7 @@
 /** Defined to 1 if tinydtls is built for Contiki OS */
 #undef WITH_CONTIKI
 
+/** Defined to 1 if tinydtls is built for Web ID*/
+#undef DTLS_WEBID
+
 #endif /* _DTLS_TINYDTLS_H_ */
