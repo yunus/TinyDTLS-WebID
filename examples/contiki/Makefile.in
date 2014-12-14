@@ -26,13 +26,15 @@ abs_builddir = @abs_builddir@
 top_builddir = @top_builddir@
 top_srcdir:= @top_srcdir@
 DISTDIR=$(top_builddir)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@
-DTLS_SOURCES:=dtls-server.c dtls-client.c
+DTLS_SOURCES:=dtls-server.c dtls-client.c dtls-coap-webid.c
 FILES:=Makefile.in $(DTLS_SOURCES)
 
-all: dtls-server dtls-client
+all: dtls-server dtls-client dtls-coap-webid
 	$(MAKE) $(MAKEFLAGS) ROLE=server dtls-server
 	$(MAKE) $(MAKEFLAGS) clean
 	$(MAKE) $(MAKEFLAGS) ROLE=client dtls-client
+	$(MAKE) $(MAKEFLAGS) clean
+	$(MAKE) $(MAKEFLAGS) ROLE=server dtls-coap-webid
 
 CONTIKI=$(top_srcdir)/../..
 
@@ -58,5 +60,14 @@ ccm-test: tests/ccm-test
 dist:	$(FILES)
 	test -d $(DISTDIR)/examples/contiki || $(MKDIR) -p $(DISTDIR)/examples/contiki
 	cp $(FILES) $(DISTDIR)/examples/contiki
+
+connect-two-hosts-minimal-net:
+	sudo ifconfig br0 down
+	sudo brctl addbr br0
+	sudo brctl addif br0 tap0
+	sudo brctl addif br0 tap1
+	sudo ifconfig br0 up
+
+include ./Makefile.coap.include
 
 include $(CONTIKI)/Makefile.include
