@@ -1074,7 +1074,6 @@ static inline void
 update_hs_hash(dtls_peer_t *peer, uint8 *data, size_t length) {
   dtls_debug_dump("add MAC data", data, length);
   dtls_hash_update(&peer->handshake_params->hs_state.hs_hash, data, length);
-  dtls_debug_dump("dtls-webid: new hash",peer->handshake_params->hs_state.hs_hash.buffer,SHA256_BLOCK_LENGTH);
 }
 
 static void
@@ -2603,7 +2602,7 @@ check_server_certificate(dtls_context_t *ctx,
 			 dtls_peer_t *peer,
 			 uint8 *data, size_t data_length)
 {
-  int err;
+  int err=0;
   dtls_handshake_parameters_t *config = peer->handshake_params;
 
   update_hs_hash(peer, data, data_length);
@@ -2645,14 +2644,17 @@ check_server_certificate(dtls_context_t *ctx,
 #ifdef DTLS_WEBID
 	     , config->keyx.ecdsa.webid_uri.webid_uri,
 	     config->keyx.ecdsa.webid_uri.uri_length
-#endif
+#endif /* DTLS_WEBID */
 	     );
+#ifdef DTLS_WEBID
+    peer->is_authorised = err;
+#endif /* DTLS_WEBID */
   if (err < 0) {
     dtls_warn("The certificate was not accepted\n");
     return err;
   }
 
-  return 0;
+  return err;
 }
 
 #ifdef DTLS_WEBID
@@ -3282,6 +3284,16 @@ handle_handshake_msg(dtls_context_t *ctx, dtls_peer_t *peer, session_t *session,
       /* send ServerFinished */
       update_hs_hash(peer, data, data_length);
 
+
+#ifdef DTLS_WEBID
+      if (peer->is_authorised == WAIT_AUTHORIZATION){
+    	  /*Do not continue further in the handshake, wait for authorization */
+    	  dtls_debug("dtls-webid: Waiting for authorization, delaying the finished message\n");
+    	  peer->state = DTLS_STATE_WAIT_AUTHORIZATION;
+    	  return 0;
+      }
+#endif /* DTLS_WEBID */
+
       /* send change cipher spec message and switch to new configuration */
       err = dtls_send_ccs(ctx, peer);
       if (err < 0) {
@@ -3749,6 +3761,12 @@ dtls_handle_message(dtls_context_t *ctx,
     dtls_dsrv_log_addr(DTLS_LOG_DEBUG, "peer addr", session);
   } else {
     dtls_debug("dtls_handle_message: FOUND PEER\n");
+#ifdef DTLS_WEBID
+    if(peer->role==DTLS_SERVER && peer->state == DTLS_STATE_WAIT_AUTHORIZATION){
+    	dtls_warn("dtls-webid: ignoring all the messages, currently we wait for authorization\n");
+    	return 0;
+    }
+#endif /* DTLS_WEBID */
   }
 
   while ((rlen = is_record(msg,msglen))) {
@@ -3791,6 +3809,7 @@ dtls_handle_message(dtls_context_t *ctx,
 
     case DTLS_CT_CHANGE_CIPHER_SPEC:
       if (peer) {
+
         dtls_stop_retransmission(ctx, peer);
       }
       err = handle_ccs(ctx, peer, msg, data, data_length);
@@ -3855,6 +3874,12 @@ dtls_handle_message(dtls_context_t *ctx,
 	dtls_stop_retransmission(ctx, peer);
 	CALL(ctx, event, &peer->session, 0, DTLS_EVENT_CONNECTED);
       }
+#ifdef DTLS_WEBID
+	if(peer && peer->state == DTLS_STATE_WAIT_AUTHORIZATION){
+		dtls_stop_retransmission(ctx, peer);
+		break;
+	}
+#endif /* DTLS_WEBID */
       break;
 
     case DTLS_CT_APPLICATION_DATA:
@@ -3877,6 +3902,65 @@ dtls_handle_message(dtls_context_t *ctx,
   }
 
   return 0;
+}
+
+int
+authorized_finish(dtls_context_t *ctx,
+		session_t *session, uint8_t is_authorised) {
+	dtls_peer_t *peer = NULL;
+
+	int err=0;
+
+
+	/* check if we have DTLS state for addr/port/ifindex */
+	peer = dtls_get_peer(ctx, session);
+
+	if (!peer) {
+		dtls_debug("dtls-webid: authorized finish: PEER NOT FOUND\n");
+		dtls_dsrv_log_addr(DTLS_LOG_DEBUG, "peer addr", session);
+		return -1;
+	} else {
+		dtls_debug("dtls-webid: authorized finish: FOUND PEER\n");
+	}
+
+	if(!is_authorised){
+		dtls_alert_send_from_err(ctx, peer, session, DTLS_ALERT_ACCESS_DENIED);
+		return DTLS_ALERT_ACCESS_DENIED;
+	}
+
+
+	//if (role == DTLS_SERVER) {
+	/* send ServerFinished */
+	//update_hs_hash(peer, data, data_length);
+
+	/* send change cipher spec message and switch to new configuration */
+	err = dtls_send_ccs(ctx, peer);
+	if (err < 0) {
+		dtls_warn("dtls-webid: authorized finish: cannot send CCS message\n");
+		dtls_alert_send_from_err(ctx, peer, session, err);
+		return err;
+	}
+
+	dtls_security_params_switch(peer);
+
+	err = dtls_send_finished(ctx, peer, PRF_LABEL(server), PRF_LABEL_SIZE(server));
+	if (err < 0) {
+		dtls_warn("dtls-webid: authorized finish:sending server Finished failed\n");
+		dtls_alert_send_from_err(ctx, peer, session, err);
+		return err;
+	}
+	// }
+	dtls_handshake_free(peer->handshake_params);
+	peer->handshake_params = NULL;
+	dtls_debug("dtls-webid: authorized finish: Handshake complete\n");
+	check_stack();
+	peer->state = DTLS_STATE_CONNECTED;
+
+	/* stop retransmissions */
+	dtls_stop_retransmission(ctx, peer);
+	CALL(ctx, event, &peer->session, 0, DTLS_EVENT_CONNECTED);
+
+	return 0;
 }
 
 dtls_context_t *

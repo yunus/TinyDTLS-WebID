@@ -1,6 +1,7 @@
 #include "contiki.h"
 #include "contiki-net.h"
 #include "contiki-lib.h"
+#include "sys/process.h"
 
 #include "erbium.h"
 #include "er-coap-13-dtls.h"
@@ -35,10 +36,18 @@
 #define UIP_UDP_BUF  ((struct uip_udp_hdr *)&uip_buf[UIP_LLIPH_LEN])
 
 #define REST_RES_HELLO 1
+#define REMOTE_PORT     UIP_HTONS(5684)
+#define OWNER_NODE(ipaddr)   uip_ip6addr(ipaddr, 0xaaaa, 0, 0, 0, 0, 0, 0, 0x0001)
+static uip_ipaddr_t owner_ipaddr;
+
 
 /*------------------PROCESS----------------------*/
+process_event_t delegation_event;
 PROCESS(coaps_server_process, "COAPS server process");
+PROCESS(coaps_delegator, "COAPS authorization delegator");
 AUTOSTART_PROCESSES(&coaps_server_process);
+
+
 /*------------------PROCESS----------------------*/
 
 /*-------------------------------ECDSA---------------------------------------*/
@@ -147,6 +156,8 @@ get_ecdsa_key(struct dtls_context_t *ctx,
   return 0;
 }
 
+
+static session_t authorization_session;
 static int
 verify_ecdsa_key(struct dtls_context_t *ctx,
 		 const session_t *session,
@@ -160,13 +171,19 @@ verify_ecdsa_key(struct dtls_context_t *ctx,
 		 ) {
 
 #ifdef DTLS_WEBID
-  unsigned char uri[webid_uri_size+1];
-  memcpy(uri,webid_uri,webid_uri_size);
-  uri[webid_uri_size]='\0';
+  printf("dtls-webid: In verify ecdsa the uri is -%.*s- with length:%d\n",webid_uri_size,webid_uri,webid_uri_size);
 
-  printf("dtls-webid: In verify ecdsa the uri is -%s- with length:%d\n",uri,webid_uri_size);
-#endif
-  return 0;
+  /* FIXME: INSTEAD of URI comparison, the certificate of the server should be CHECKED!!!!*/
+  if (strcmp(webid_uri,"example.org/owner_webid/") != 0 ){
+	  printf("dtls-webid: delegating -%.*s- \n",webid_uri_size,webid_uri);
+	  process_start(&coaps_delegator, NULL);
+	  dtls_session_init(&authorization_session);
+	  dtls_session_copy(session,&authorization_session);
+	  return WAIT_AUTHORIZATION;
+  }
+#endif /* DTLS_WEBID */
+  printf("dtls-webid: verify ecdsa this guy is safe to go -%.*s-\n",webid_uri_size,webid_uri);
+  return AUTHORIZED;
 }
 #endif /* DTLS_ECC */
 
@@ -251,6 +268,7 @@ read_from_peer(struct dtls_context_t *ctx,
 
 
 /*-----------------------------------------------------------------------------------*/
+
 void
 coap_handle_receive()
 {
@@ -322,6 +340,7 @@ helloworld_handler(void* request, void* response, uint8_t *buffer, uint16_t pref
   REST.set_response_payload(response, buffer, length);
 }
 #endif
+extern uint16_t current_mid;
 
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(coaps_server_process, ev, data)
@@ -329,7 +348,12 @@ PROCESS_THREAD(coaps_server_process, ev, data)
   PROCESS_BEGIN();
 
   dtls_init();
+  delegation_event = process_alloc_event();
+  PRINTF("Starting CoAPS receiver...\n");
 
+
+  coap_register_as_transaction_handler();
+  current_mid = random_rand();
   if (coap_init_communication_layer(UIP_HTONS(5684)) < 0) {
      dtls_emerg("cannot create context\n");
      PROCESS_EXIT();
@@ -344,7 +368,7 @@ PROCESS_THREAD(coaps_server_process, ev, data)
     /* Initialize the REST engine. */
     rest_init_engine();
 
-    PRINTF("Starting CoAP-13 receiver...\n");
+
 
     print_local_addresses();
 
@@ -363,10 +387,71 @@ PROCESS_THREAD(coaps_server_process, ev, data)
     PROCESS_WAIT_EVENT();
     if(ev == tcpip_event) {
       coap_handle_receive();
-    }
+    }else if (ev == PROCESS_EVENT_TIMER) {
+        /* retransmissions are handled here */
+        coap_check_transactions();
+      } else if (ev == delegation_event){
+    	  printf("dtls-webid: PAUSED!!!\n");
+    	  PROCESS_PAUSE();
+      }
   }
 
   PROCESS_END();
 }
 /*---------------------------------------------------------------------------*/
 
+#ifdef DTLS_WEBID
+/* This function is will be passed to COAP_BLOCKING_REQUEST() to handle responses. */
+void
+client_chunk_handler(void *response)
+{
+  const uint8_t *chunk;
+
+  int len = coap_get_payload(response, &chunk);
+  printf("dtls-webid Chunk: |%.*s\n", len, (char *)chunk);
+
+  authorized_finish(coap_default_context,&authorization_session,AUTHORIZED);
+
+}
+
+
+
+
+PROCESS_THREAD(coaps_delegator, ev, data)
+{
+  PROCESS_BEGIN();
+
+  static coap_packet_t request[1]; /* This way the packet can be treated as pointer as usual. */
+  OWNER_NODE(&owner_ipaddr);
+  //delegation_event = process_alloc_event();
+  printf("dtls-webid: Delegation process has started \n");
+
+  //while(1) {
+	//  PROCESS_WAIT_EVENT_UNTIL(ev == delegation_event);
+
+      printf("dtls-webid: --Delegate--\n");
+
+      /* prepare request, TID is set by COAP_BLOCKING_REQUEST() */
+      coap_init_message(request, COAP_TYPE_CON, COAP_GET, 0 );
+      coap_set_header_uri_path(request, "/verify");
+
+      const char msg[] = "Verify!";
+      coap_set_payload(request, (uint8_t *)msg, sizeof(msg)-1);
+
+
+      PRINT6ADDR(&owner_ipaddr);
+      PRINTF("dtls-webid : %u\n", REMOTE_PORT);
+
+      COAP_BLOCKING_REQUEST(coap_default_context,&owner_ipaddr, REMOTE_PORT, request, client_chunk_handler);
+
+
+      printf("\ndtls-webid:--Delegation Done--\n");
+
+  //}
+
+
+
+
+  PROCESS_END();
+}
+#endif /* DTLS_WEBID */

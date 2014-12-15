@@ -46,6 +46,9 @@
 
 typedef enum { DTLS_CLIENT=0, DTLS_SERVER } dtls_peer_type;
 
+
+typedef enum { NOT_AUTHORIZED=-1, WAIT_AUTHORIZATION=0, AUTHORIZED=1 } dtls_access_authorised;
+
 /** 
  * Holds security parameters, local state and the transport address
  * for each peer. */
@@ -60,6 +63,9 @@ typedef struct dtls_peer_t {
 
   dtls_peer_type role;       /**< denotes if this host is DTLS_CLIENT or DTLS_SERVER */
   dtls_state_t state;        /**< DTLS engine state */
+#ifdef DTLS_WEBID
+  dtls_access_authorised is_authorised;
+#endif
 
   dtls_security_parameters_t *security_params[2];
   dtls_handshake_parameters_t *handshake_params;

@@ -73,4 +73,9 @@ void dtls_session_init(session_t *sess);
  */
 int dtls_session_equals(const session_t *a, const session_t *b);
 
+/**
+ * Copies a session from @src to @dest.
+ */
+void dtls_session_copy(const session_t *src, session_t *dest);
+
 #endif /* _DTLS_SESSION_H_ */

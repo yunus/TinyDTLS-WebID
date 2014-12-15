@@ -81,3 +81,11 @@ dtls_session_equals(const session_t *a, const session_t *b) {
   assert(a); assert(b);
   return _dtls_address_equals_impl(a, b);
 }
+
+void dtls_session_copy(const session_t *src, session_t *dest){
+	dest->ifindex = src->ifindex;
+	dest->port = src->port;
+	dest->size =  src->size;
+	uip_ipaddr_copy(&dest->addr, &src->addr);
+
+}

@@ -77,6 +77,9 @@ dtls_new_peer(const session_t *session) {
     memset(peer, 0, sizeof(dtls_peer_t));
     memcpy(&peer->session, session, sizeof(session_t));
     peer->security_params[0] = dtls_security_new();
+#ifdef DTLS_WEBID
+    peer->is_authorised = WAIT_AUTHORIZATION;
+#endif
 
     if (!peer->security_params[0]) {
       dtls_free_peer(peer);
