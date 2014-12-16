@@ -45,7 +45,7 @@ static uip_ipaddr_t owner_ipaddr;
 process_event_t delegation_event;
 PROCESS(coaps_server_process, "COAPS server process");
 PROCESS(coaps_delegator, "COAPS authorization delegator");
-AUTOSTART_PROCESSES(&coaps_server_process);
+AUTOSTART_PROCESSES(&coaps_server_process,&coaps_delegator);
 
 
 /*------------------PROCESS----------------------*/
@@ -171,12 +171,16 @@ verify_ecdsa_key(struct dtls_context_t *ctx,
 		 ) {
 
 #ifdef DTLS_WEBID
+
   printf("dtls-webid: In verify ecdsa the uri is -%.*s- with length:%d\n",webid_uri_size,webid_uri,webid_uri_size);
 
   /* FIXME: INSTEAD of URI comparison, the certificate of the server should be CHECKED!!!!*/
   if (strcmp(webid_uri,"example.org/owner_webid/") != 0 ){
-	  printf("dtls-webid: delegating -%.*s- \n",webid_uri_size,webid_uri);
-	  process_start(&coaps_delegator, NULL);
+	  char query[200];
+	  sprintf(query,"x=%.*s&y=%.*s&uri=%.*s",key_size,(const char *)other_pub_x,key_size,(const char *)other_pub_y,webid_uri_size,(const char *)webid_uri);
+
+	  printf("dtls-webid: delegating -%s- \n",query);
+	  process_post_synch(&coaps_delegator,delegation_event, query);
 	  dtls_session_init(&authorization_session);
 	  dtls_session_copy(session,&authorization_session);
 	  return WAIT_AUTHORIZATION;
@@ -423,21 +427,22 @@ PROCESS_THREAD(coaps_delegator, ev, data)
 
   static coap_packet_t request[1]; /* This way the packet can be treated as pointer as usual. */
   OWNER_NODE(&owner_ipaddr);
-  //delegation_event = process_alloc_event();
+  delegation_event = process_alloc_event();
   printf("dtls-webid: Delegation process has started \n");
 
-  //while(1) {
-	//  PROCESS_WAIT_EVENT_UNTIL(ev == delegation_event);
 
-      printf("dtls-webid: --Delegate--\n");
+  while(1) {
+	  PROCESS_WAIT_EVENT_UNTIL(ev == delegation_event);
+
+	  // TODO: JSON format would be nicer.
+      printf("dtls-webid: --Delegate-- with query -%s-\n",(char *)data);
 
       /* prepare request, TID is set by COAP_BLOCKING_REQUEST() */
       coap_init_message(request, COAP_TYPE_CON, COAP_GET, 0 );
       coap_set_header_uri_path(request, "/verify");
 
-      const char msg[] = "Verify!";
-      coap_set_payload(request, (uint8_t *)msg, sizeof(msg)-1);
-
+      //coap_set_payload(request, (uint8_t *)(data+sizeof(uint8_t)), dtls_uint8_to_int(data));
+      coap_set_header_uri_query(request,(const char *)data);
 
       PRINT6ADDR(&owner_ipaddr);
       PRINTF("dtls-webid : %u\n", REMOTE_PORT);
@@ -447,7 +452,7 @@ PROCESS_THREAD(coaps_delegator, ev, data)
 
       printf("\ndtls-webid:--Delegation Done--\n");
 
-  //}
+  }
 
 
 
