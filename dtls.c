@@ -3904,9 +3904,9 @@ dtls_handle_message(dtls_context_t *ctx,
   return 0;
 }
 
-int
+dtls_alert_t
 authorized_finish(dtls_context_t *ctx,
-		session_t *session, uint8_t is_authorised) {
+		session_t *session, dtls_access_authorised is_authorised) {
 	dtls_peer_t *peer = NULL;
 
 	int err=0;
@@ -3920,10 +3920,11 @@ authorized_finish(dtls_context_t *ctx,
 		dtls_dsrv_log_addr(DTLS_LOG_DEBUG, "peer addr", session);
 		return -1;
 	} else {
-		dtls_debug("dtls-webid: authorized finish: FOUND PEER\n");
+		dtls_debug("dtls-webid: authorized finish: FOUND PEER \n");
 	}
 
-	if(!is_authorised){
+	if(is_authorised==NOT_AUTHORIZED){
+		dtls_warn("dtls-webid: The peer is not authorized, sending alert message\n");
 		dtls_alert_send_from_err(ctx, peer, session, DTLS_ALERT_ACCESS_DENIED);
 		return DTLS_ALERT_ACCESS_DENIED;
 	}

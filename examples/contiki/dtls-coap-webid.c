@@ -411,7 +411,11 @@ client_chunk_handler(void *response)
   int len = coap_get_payload(response, &chunk);
   printf("dtls-webid Chunk: |%.*s\n", len, (char *)chunk);
 
-  authorized_finish(coap_default_context,&authorization_session,AUTHORIZED);
+  if(strncmp((const char*) chunk,"verified",8) == 0){
+	  authorized_finish(coap_default_context,&authorization_session,AUTHORIZED);
+  } else {
+	  authorized_finish(coap_default_context,&authorization_session,NOT_AUTHORIZED);
+  }
 
 }
 
