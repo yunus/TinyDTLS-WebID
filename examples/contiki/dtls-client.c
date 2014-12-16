@@ -223,7 +223,7 @@ verify_ecdsa_key(struct dtls_context_t *ctx,
 
   printf("dtls-webid: In verify ecdsa the uri is -%s- with length:%d\n",uri,webid_uri_size);
 #endif
-  return 0;
+  return AUTHORIZED;
 }
 #endif /* DTLS_ECC */
 
@@ -300,7 +300,7 @@ init_dtls(session_t *dst) {
   print_local_addresses();
 
   dst->size = sizeof(dst->addr) + sizeof(dst->port);
-  dst->port = UIP_HTONS(20220);
+  dst->port = UIP_HTONS(5684);
 
   set_connection_address(&dst->addr);
   client_conn = udp_new(&dst->addr, 0, NULL);
