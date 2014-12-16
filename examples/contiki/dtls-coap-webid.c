@@ -352,7 +352,7 @@ PROCESS_THREAD(coaps_server_process, ev, data)
   PROCESS_BEGIN();
 
   dtls_init();
-  delegation_event = process_alloc_event();
+
   PRINTF("Starting CoAPS receiver...\n");
 
 
@@ -394,10 +394,7 @@ PROCESS_THREAD(coaps_server_process, ev, data)
     }else if (ev == PROCESS_EVENT_TIMER) {
         /* retransmissions are handled here */
         coap_check_transactions();
-      } else if (ev == delegation_event){
-    	  printf("dtls-webid: PAUSED!!!\n");
-    	  PROCESS_PAUSE();
-      }
+    }
   }
 
   PROCESS_END();
