@@ -1,3 +1,10 @@
+Warning:
+This project is a fork of [TinyDTLS](https://sourceforge.net/p/tinydtls/code/ci/master/tree/). 
+Hence, it is better to check the original.
+
+Moreover, to use webid with CoAP you also need to make some changes in Contiki. I plan to put those
+also in near future. 
+
 CONTENTS 
 
 This library contains functions and structures that can help
@@ -14,9 +21,12 @@ C99. The following components are available:
 BUILDING
 
 When using the code from the git repository at sourceforge, invoke
-'autoreconf' to re-create the configure script. To build for Contiki,
+'autoconf' to re-create the configure script. To build for Contiki,
 place tinydtls into Contiki's apps directory and call 
   ./configure --with-contiki.
+
+To use webid call configuration with 
+  ./configure --with-webid.
 
 After configuration, invoke make to build the library and associated
 test programs. To add tinydtls as Contiki application, drop it into
