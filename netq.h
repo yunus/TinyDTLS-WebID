@@ -24,11 +24,15 @@
 
 #ifndef NETQ_MAXCNT
 #ifdef DTLS_ECC
-#define NETQ_MAXCNT 5 /**< maximum number of elements in netq structure */
+#ifdef DTLS_WEBID
+#define NETQ_MAXCNT 6 /**< maximum number of elements in netq structure */
+#else  /*DTLS_WEBID*/
+#define NETQ_MAXCNT 5
+#endif /*DTLS_WEBID*/
 #elif defined(DTLS_PSK)
 #define NETQ_MAXCNT 3 /**< maximum number of elements in netq structure */
 #endif
-#endif
+#endif/* NETQ_MAXCNT */
 
 /** 
  * Datagrams in the netq_t structure have a fixed maximum size of

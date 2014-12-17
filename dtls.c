@@ -1433,7 +1433,8 @@ dtls_send_multi(dtls_context_t *ctx, dtls_peer_t *peer,
   /* if (peer && MUST_HASH(peer, type, buf, buflen)) */
   /*   update_hs_hash(peer, buf, buflen); */
 
-  dtls_debug_hexdump("send header", sendbuf, sizeof(dtls_record_header_t));
+  dtls_debug(" Sending the message of type %u\n",(uint8_t)type);
+  dtls_debug_hexdump("send header ", sendbuf, sizeof(dtls_record_header_t));
   for (i = 0; i < buf_array_len; i++) {
     dtls_debug_hexdump("send unencrypted", buf_array[i], buf_len_array[i]);
     overall_len += buf_len_array[i];
@@ -3925,8 +3926,8 @@ authorized_finish(dtls_context_t *ctx,
 
 	if(is_authorised==NOT_AUTHORIZED){
 		dtls_warn("dtls-webid: The peer is not authorized, sending alert message\n");
-		dtls_alert_send_from_err(ctx, peer, session, DTLS_ALERT_ACCESS_DENIED);
-		return DTLS_ALERT_ACCESS_DENIED;
+		dtls_alert_send_from_err(ctx, peer, session, dtls_alert_fatal_create(DTLS_ALERT_ACCESS_DENIED));
+		return dtls_alert_fatal_create(DTLS_ALERT_ACCESS_DENIED);
 	}
 
 
