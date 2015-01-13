@@ -263,12 +263,14 @@ send_to_peer(struct dtls_context_t *ctx,
 
   uip_udp_packet_send(conn, data, len);
 
+  PRINTF("send to ");
+      PRINT6ADDR(&conn->ripaddr);
+      PRINTF(":%u\n", uip_ntohs(conn->rport));
+
   /* Restore server connection to allow data from any node */
   memset(&conn->ripaddr, 0, sizeof(conn->ripaddr));
   memset(&conn->rport, 0, sizeof(conn->rport));
-  PRINTF("send to ");
-    PRINT6ADDR(&conn->ripaddr);
-    PRINTF(":%u\n", uip_ntohs(conn->rport));
+
   return len;
 }
 
