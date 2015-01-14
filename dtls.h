@@ -248,6 +248,19 @@ typedef struct dtls_context_t {
   unsigned char readbuf[DTLS_MAX_BUF];
 } dtls_context_t;
 
+#ifdef DTLS_WEBID
+  /**
+   * With webid delegation, the authentication process waits for a reponse from
+   * the delegation server. After the reply from the delegation server
+   * arrives, this method is called with the result. Then
+   * the last flight -- CCS+finished message-- is sent from the this server to
+   * the client.
+   * */
+  dtls_alert_t
+  authorized_finish(dtls_context_t *ctx,
+  		session_t *session, dtls_access_authorised is_authorised);
+#endif /* DTLS_WEBID */
+
 /** 
  * This function initializes the tinyDTLS memory management and must
  * be called first.

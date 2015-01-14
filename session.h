@@ -32,7 +32,7 @@
 #include "global.h"
 
 #ifdef WITH_CONTIKI
-#include "net/uip.h"
+#include "net/ip/uip.h"
 typedef struct {
   unsigned char size;
   uip_ipaddr_t addr;

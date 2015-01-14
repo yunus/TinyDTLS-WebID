@@ -3,10 +3,10 @@
 #include "contiki-lib.h"
 #include "sys/process.h"
 
-#include "erbium.h"
-#include "er-coap-13-dtls.h"
-#include "er-coap-13.h"
-#include "er-coap-13-engine.h"
+
+#include "er-coap.h"
+#include "er-coap-engine-dtls.h"
+
 
 
 #include "tinydtls.h"
@@ -19,7 +19,7 @@
 #ifndef DEBUG
 #define DEBUG DEBUG_PRINT
 #endif
-#include "net/uip-debug.h"
+#include "net/ip/uip-debug.h"
 
 
 #if UIP_CONF_IPV6_RPL
@@ -32,14 +32,17 @@
 
 //#define MAX_PAYLOAD_LEN 120
 
-#define UIP_IP_BUF   ((struct uip_ip_hdr *)&uip_buf[UIP_LLH_LEN])
-#define UIP_UDP_BUF  ((struct uip_udp_hdr *)&uip_buf[UIP_LLIPH_LEN])
+//#define UIP_IP_BUF   ((struct uip_ip_hdr *)&uip_buf[UIP_LLH_LEN])
+//#define UIP_UDP_BUF  ((struct uip_udp_hdr *)&uip_buf[UIP_LLIPH_LEN])
 
 #define REST_RES_HELLO 1
 #define REMOTE_PORT     UIP_HTONS(5684)
 #define OWNER_NODE(ipaddr)   uip_ip6addr(ipaddr, 0xaaaa, 0, 0, 0, 0, 0, 0, 0x0001)
 static uip_ipaddr_t owner_ipaddr;
 
+static dtls_context_t *dtls_context;
+
+extern const struct rest_implementation coap_rest_implementation;
 
 /*------------------PROCESS----------------------*/
 process_event_t delegation_event;
@@ -172,7 +175,7 @@ get_ecdsa_key(struct dtls_context_t *ctx,
 }
 
 
-static session_t authorization_session;
+
 static int
 verify_ecdsa_key(struct dtls_context_t *ctx,
 		 const session_t *session,
@@ -217,6 +220,7 @@ verify_ecdsa_key(struct dtls_context_t *ctx,
 }
 #endif /* DTLS_ECC */
 
+extern uint16_t current_mid;
 int
 coap_init_communication_layer(uint16_t port)
 {
@@ -239,11 +243,14 @@ coap_init_communication_layer(uint16_t port)
   struct uip_udp_conn *server_conn = udp_new(NULL, 0, NULL);
   udp_bind(server_conn, port);
 
+  /* initialize transaction ID for CoAP */
+   current_mid = random_rand();
+
   dtls_set_log_level(DTLS_LOG_DEBUG);
 
-  coap_default_context = dtls_new_context(server_conn);
-  if (coap_default_context)
-    dtls_set_handler(coap_default_context, &cb);
+  dtls_context = dtls_new_context(server_conn);
+  if (dtls_context)
+    dtls_set_handler(dtls_context, &cb);
   else
 	  return -1;
 
@@ -277,7 +284,7 @@ send_to_peer(struct dtls_context_t *ctx,
 
 /*-----------------------------------------------------------------------------------*/
 void
-coap_send_message(context_t * ctx, uip_ipaddr_t *addr, uint16_t port, uint8_t *data, uint16_t length)
+coap_send_message(uip_ipaddr_t *addr, uint16_t port, uint8_t *data, uint16_t length)
 {
   session_t session;
 
@@ -285,7 +292,7 @@ coap_send_message(context_t * ctx, uip_ipaddr_t *addr, uint16_t port, uint8_t *d
   uip_ipaddr_copy(&session.addr, addr);
   session.port = port;
 
-  dtls_write(ctx, &session, data, length);
+  dtls_write(dtls_context, &session, data, length);
 }
 /*-----------------------------------------------------------------------------------*/
 static int
@@ -293,7 +300,7 @@ read_from_peer(struct dtls_context_t *ctx,
                session_t *session, uint8 *data, size_t len) {
   uip_len = len;
   memmove(uip_appdata, data, len);
-  coap_receive(ctx);
+  coap_receive();
   return 0;
 }
 
@@ -311,7 +318,7 @@ coap_handle_receive()
     uip_ipaddr_copy(&session.addr, &UIP_IP_BUF->srcipaddr);
     session.port = UIP_UDP_BUF->srcport;
 
-    dtls_handle_message(coap_default_context, &session, uip_appdata, uip_datalen());
+    dtls_handle_message(dtls_context, &session, uip_appdata, uip_datalen());
   }
 }
 
@@ -341,38 +348,41 @@ print_local_addresses(void)
  * Resources are defined by the RESOURCE macro.
  * Signature: resource name, the RESTful methods it handles, and its URI path (omitting the leading slash).
  */
-RESOURCE(helloworld, METHOD_GET, "hello", "title=\"Hello world: ?len=0..\";rt=\"Text\"");
 
-/*
- * A handler function named [resource name]_handler must be implemented for each RESOURCE.
- * A buffer for the response payload is provided through the buffer pointer. Simple resources can ignore
- * preferred_size and offset, but must respect the REST_MAX_CHUNK_SIZE limit for the buffer.
- * If a smaller block size is requested for CoAP, the REST framework automatically splits the data.
- */
-void
-helloworld_handler(void* request, void* response, uint8_t *buffer, uint16_t preferred_size, int32_t *offset)
+static void
+res_get_handler(void *request, void *response, uint8_t *buffer, uint16_t preferred_size, int32_t *offset)
 {
   const char *len = NULL;
   /* Some data that has the length up to REST_MAX_CHUNK_SIZE. For more, see the chunk resource. */
-  char const * const message = "Hello World! ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxy";
+  char const *const message = "Hello World! ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxy";
   int length = 12; /*           |<-------->| */
 
   /* The query string can be retrieved by rest_get_query() or parsed for its key-value pairs. */
-  if (REST.get_query_variable(request, "len", &len)) {
+  if(REST.get_query_variable(request, "len", &len)) {
     length = atoi(len);
-    if (length<0) length = 0;
-    if (length>REST_MAX_CHUNK_SIZE) length = REST_MAX_CHUNK_SIZE;
+    if(length < 0) {
+      length = 0;
+    }
+    if(length > REST_MAX_CHUNK_SIZE) {
+      length = REST_MAX_CHUNK_SIZE;
+    }
     memcpy(buffer, message, length);
   } else {
     memcpy(buffer, message, length);
-  }
-
-  REST.set_header_content_type(response, REST.type.TEXT_PLAIN); /* text/plain is the default, hence this option could be omitted. */
-  REST.set_header_etag(response, (uint8_t *) &length, 1);
+  } REST.set_header_content_type(response, REST.type.TEXT_PLAIN); /* text/plain is the default, hence this option could be omitted. */
+  REST.set_header_etag(response, (uint8_t *)&length, 1);
   REST.set_response_payload(response, buffer, length);
 }
+
+RESOURCE(res_hello,
+         "title=\"Hello world: ?len=0..\";rt=\"Text\"",
+         res_get_handler,
+         NULL,
+         NULL,
+         NULL);
+
 #endif
-extern uint16_t current_mid;
+
 
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(coaps_server_process, ev, data)
@@ -385,7 +395,6 @@ PROCESS_THREAD(coaps_server_process, ev, data)
 
 
   coap_register_as_transaction_handler();
-  current_mid = random_rand();
   if (coap_init_communication_layer(UIP_HTONS(5684)) < 0) {
      dtls_emerg("cannot create context\n");
      PROCESS_EXIT();
@@ -399,12 +408,7 @@ PROCESS_THREAD(coaps_server_process, ev, data)
 
     /* Initialize the REST engine. */
     rest_init_engine();
-
-
-
     print_local_addresses();
-
-
 
 #ifdef ENABLE_POWERTRACE
   powertrace_start(CLOCK_SECOND * 2);
@@ -412,7 +416,7 @@ PROCESS_THREAD(coaps_server_process, ev, data)
 
   /* Activate the application-specific resources. */
   #if REST_RES_HELLO
-    rest_activate_resource(&resource_helloworld);
+    rest_activate_resource(&res_hello,"test/hello");
   #endif
 
   while(1) {
@@ -448,9 +452,9 @@ client_chunk_handler(void *response)
   }
 
   if(chunk[0] == '1'){
-	  authorized_finish(coap_default_context,&s->session,AUTHORIZED);
+	  authorized_finish(dtls_context,&s->session,AUTHORIZED);
   } else {
-	  authorized_finish(coap_default_context,&s->session,NOT_AUTHORIZED);
+	  authorized_finish(dtls_context,&s->session,NOT_AUTHORIZED);
   }
 
   list_remove(session_table,s);
@@ -491,7 +495,7 @@ PROCESS_THREAD(coaps_delegator, ev, data)
       PRINT6ADDR(&owner_ipaddr);
       PRINTF("dtls-webid : %u\n", REMOTE_PORT);
 
-      COAP_BLOCKING_REQUEST(coap_default_context,&owner_ipaddr, REMOTE_PORT, request, client_chunk_handler);
+      COAP_BLOCKING_REQUEST(&owner_ipaddr, REMOTE_PORT, request, client_chunk_handler);
 
 
       printf("\ndtls-webid:--Delegation Done--\n");
