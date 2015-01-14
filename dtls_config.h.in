@@ -46,12 +46,20 @@
 /* global constants for constrained devices running Contiki */
 #ifndef DTLS_PEER_MAX
 /** The maximum number DTLS peers (i.e. sessions). */
+#ifdef DTLS_WEBID
+#  define DTLS_PEER_MAX 2
+#else
 #  define DTLS_PEER_MAX 1
+#endif /*DTLS_WEBID*/
 #endif
 
 #ifndef DTLS_HANDSHAKE_MAX
 /** The maximum number of concurrent DTLS handshakes. */
+#ifdef DTLS_WEBID
+#  define DTLS_HANDSHAKE_MAX 2
+#else
 #  define DTLS_HANDSHAKE_MAX 1
+#endif /*DTLS_WEBID*/
 #endif
 
 #ifndef DTLS_SECURITY_MAX
