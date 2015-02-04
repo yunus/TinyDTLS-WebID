@@ -17,7 +17,7 @@
 #include <string.h>
 
 #ifndef DEBUG
-#define DEBUG DEBUG_PRINT
+#define DEBUG DEBUG_NONE
 #endif
 #include "net/ip/uip-debug.h"
 
@@ -47,9 +47,12 @@ extern const struct rest_implementation coap_rest_implementation;
 /*------------------PROCESS----------------------*/
 process_event_t delegation_event;
 PROCESS(coaps_server_process, "COAPS server process");
+#ifdef DTLS_WEBID
 PROCESS(coaps_delegator, "COAPS authorization delegator");
 AUTOSTART_PROCESSES(&coaps_server_process,&coaps_delegator);
-
+#else
+AUTOSTART_PROCESSES(&coaps_server_process);
+#endif /*DTLS_WEBID*/
 
 /*------------------PROCESS----------------------*/
 
