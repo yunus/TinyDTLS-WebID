@@ -193,7 +193,7 @@ verify_ecdsa_key(struct dtls_context_t *ctx,
 
 #ifdef DTLS_WEBID
 
-  printf("dtls-webid: In verify ecdsa the uri is -%.*s- with length:%d\n",webid_uri_size,webid_uri,webid_uri_size);
+  PRINTF("dtls-webid: In verify ecdsa the uri is -%.*s- with length:%d\n",webid_uri_size,webid_uri,webid_uri_size);
 
   /* FIXME: INSTEAD of URI comparison, the certificate of the server should be CHECKED!!!!*/
   if (strcmp((const char*)webid_uri,"example.org/owner_webid/") != 0 ){
@@ -212,13 +212,14 @@ verify_ecdsa_key(struct dtls_context_t *ctx,
 	  list_add(session_table,s);
 
 	  sprintf(query,"x=%.*s&y=%.*s&uri=%.*s",key_size,(const char *)other_pub_x,key_size,(const char *)other_pub_y,webid_uri_size,(const char *)webid_uri);
-	  printf("dtls-webid: delegating -%s- \n",query);
+	  PRINTF("dtls-webid: delegating -%s- \n",query);
 	  process_post_synch(&coaps_delegator,delegation_event, query);
 
 	  return WAIT_AUTHORIZATION;
   }
+  PRINTF("dtls-webid: verify ecdsa this guy is safe to go -%.*s-\n",webid_uri_size,webid_uri);
 #endif /* DTLS_WEBID */
-  printf("dtls-webid: verify ecdsa this guy is safe to go -%.*s-\n",webid_uri_size,webid_uri);
+
   return AUTHORIZED;
 }
 #endif /* DTLS_ECC */
@@ -258,7 +259,7 @@ coap_init_communication_layer(uint16_t port)
 	  return -1;
 
   /* new connection with remote host */
-  printf("COAP-DTLS listening on port %u\n", uip_ntohs(server_conn->lport));
+  PRINTF("COAP-DTLS listening on port %u\n", uip_ntohs(server_conn->lport));
   return 0;
 }
 /*-----------------------------------------------------------------------------------*/
@@ -445,7 +446,7 @@ client_chunk_handler(void *response)
   session_auth_t *s=NULL;
 
   int len = coap_get_payload(response, &chunk);
-  printf("dtls-webid: Waiting sessions are %d, Chunk: |%.*s|\n",list_length(session_table), len, (char *)chunk);
+  PRINTF("dtls-webid: Waiting sessions are %d, Chunk: |%.*s|\n",list_length(session_table), len, (char *)chunk);
 
   for(s = list_head(session_table); s != NULL && strncmp(s->uri,((const char*)&chunk[1]),len-1) != 0; s = s->next) {}
 
@@ -462,7 +463,7 @@ client_chunk_handler(void *response)
 
   list_remove(session_table,s);
   memb_free(&session_mem,s);
-  printf("dtls-webid: Waiting sessions are %d \n",list_length(session_table));
+  PRINTF("dtls-webid: Waiting sessions are %d \n",list_length(session_table));
 }
 
 
@@ -479,14 +480,14 @@ PROCESS_THREAD(coaps_delegator, ev, data)
   memb_init(&session_mem);
   list_init(session_table);
 
-  printf("dtls-webid: Delegation process has started \n");
+  PRINTF("dtls-webid: Delegation process has started \n");
 
 
   while(1) {
 	  PROCESS_WAIT_EVENT_UNTIL(ev == delegation_event);
 
 	  // TODO: JSON format would be nicer.
-      printf("dtls-webid: --Delegate-- with query -%s-\n",(char *)data);
+      PRINTF("dtls-webid: --Delegate-- with query -%s-\n",(char *)data);
 
       /* prepare request, TID is set by COAP_BLOCKING_REQUEST() */
       coap_init_message(request, COAP_TYPE_CON, COAP_GET, 0 );
@@ -501,7 +502,7 @@ PROCESS_THREAD(coaps_delegator, ev, data)
       COAP_BLOCKING_REQUEST(&owner_ipaddr, REMOTE_PORT, request, client_chunk_handler);
 
 
-      printf("\ndtls-webid:--Delegation Done--\n");
+      PRINTF("\ndtls-webid:--Delegation Done--\n");
 
   }
 
