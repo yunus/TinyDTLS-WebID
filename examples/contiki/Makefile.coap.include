@@ -5,7 +5,7 @@ WITH_COAP=1
 
 
 # IPv6 make config disappeared completely
-CFLAGS += -DUIP_CONF_IPV6=1
+CFLAGS += -DUIP_CONF_IPV6=1 -DNETSTACK_CONF_WITH_IPV6=1
 
 # enable DTLS for er-coap, dtls_context is used instead of udp
 WITH_DTLS_COAP=1

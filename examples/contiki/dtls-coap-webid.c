@@ -10,14 +10,15 @@
 
 
 #include "tinydtls.h"
-#include "debug.h"
 #include "dtls.h"
+
+#include "lib/print-stats.h"
 
 
 #include <string.h>
 
 #ifndef DEBUG
-#define DEBUG DEBUG_NONE
+#define DEBUG DEBUG_PRINT
 #endif
 #include "net/ip/uip-debug.h"
 
@@ -37,7 +38,7 @@
 
 #define REST_RES_HELLO 1
 #define REMOTE_PORT     UIP_HTONS(5684)
-#define OWNER_NODE(ipaddr)   uip_ip6addr(ipaddr, 0xaaaa, 0, 0, 0, 0, 0, 0, 0x0001)
+#define OWNER_NODE(ipaddr)  uip_ip6addr(ipaddr, 0xbbbb, 0, 0, 0, 0, 0, 0, 0x0100))
 static uip_ipaddr_t owner_ipaddr;
 
 static dtls_context_t *dtls_context;
@@ -144,7 +145,7 @@ get_psk_info(struct dtls_context_t *ctx, const session_t *session,
     for (i = 0; i < sizeof(psk)/sizeof(struct keymap_t); i++) {
       if (id_len == psk[i].id_length && memcmp(id, psk[i].id, id_len) == 0) {
 	if (result_length < psk[i].key_length) {
-	  dtls_warn("buffer too small for PSK");
+	  PRINTF("buffer too small for PSK");
 	  return dtls_alert_fatal_create(DTLS_ALERT_INTERNAL_ERROR);
 	}
 
@@ -202,7 +203,7 @@ verify_ecdsa_key(struct dtls_context_t *ctx,
 
 	  s= memb_alloc(&session_mem);
 	  if(NULL == s){
-		  dtls_warn("The session table for authorizations is full. We cannot authorize %.*s\n",webid_uri_size, webid_uri);
+		  PRINTF("The session table for authorizations is full. We cannot authorize %.*s\n",webid_uri_size, webid_uri);
 		  return NOT_AUTHORIZED;
 	  }
 	  dtls_session_init(&s->session);
@@ -250,7 +251,7 @@ coap_init_communication_layer(uint16_t port)
   /* initialize transaction ID for CoAP */
    current_mid = random_rand();
 
-  dtls_set_log_level(DTLS_LOG_DEBUG);
+  //dtls_set_log_level(DTLS_LOG_DEBUG); You should also include debug.h
 
   dtls_context = dtls_new_context(server_conn);
   if (dtls_context)
@@ -274,7 +275,7 @@ send_to_peer(struct dtls_context_t *ctx,
 
   uip_udp_packet_send(conn, data, len);
 
-  PRINTF("send to ");
+  PRINTF("send %u bytes to ",len);
       PRINT6ADDR(&conn->ripaddr);
       PRINTF(":%u\n", uip_ntohs(conn->rport));
 
@@ -320,6 +321,9 @@ coap_handle_receive()
   if(uip_newdata()) {
     dtls_session_init(&session);
     uip_ipaddr_copy(&session.addr, &UIP_IP_BUF->srcipaddr);
+    /*FIXME: Pretty nasty fix to find the address of the delegation server.
+     * Normally, you should do some routing, but this is a quick cut.*/
+    uip_ipaddr_copy(&owner_ipaddr, &UIP_IP_BUF->srcipaddr);
     session.port = UIP_UDP_BUF->srcport;
 
     dtls_handle_message(dtls_context, &session, uip_appdata, uip_datalen());
@@ -400,7 +404,7 @@ PROCESS_THREAD(coaps_server_process, ev, data)
 
   coap_register_as_transaction_handler();
   if (coap_init_communication_layer(UIP_HTONS(5684)) < 0) {
-     dtls_emerg("cannot create context\n");
+     PRINTF("cannot create context\n");
      PROCESS_EXIT();
    }
 
@@ -451,7 +455,7 @@ client_chunk_handler(void *response)
   for(s = list_head(session_table); s != NULL && strncmp(s->uri,((const char*)&chunk[1]),len-1) != 0; s = s->next) {}
 
   if(NULL == s){
-	  dtls_warn("The stored session is missing. There is a problem with authorization server \n");
+	  PRINTF("The stored session is missing. There is a problem with authorization server \n");
 	  return;
   }
 
@@ -511,4 +515,5 @@ PROCESS_THREAD(coaps_delegator, ev, data)
 
   PROCESS_END();
 }
+
 #endif /* DTLS_WEBID */
