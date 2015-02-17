@@ -211,6 +211,10 @@
 #  include "platform-specific/config-cc2538dk.h"
 #endif /* CONTIKI_TARGET_CC2538DK */
 
+#ifdef CONTIKI_TARGET_OPENMOTE
+#  include "platform-specific/config-openmote.h"
+#endif /* CONTIKI_TARGET_OPENMOTE */
+
 #ifdef CONTIKI_TARGET_WISMOTE
 #  include "platform-specific/config-wismote.h"
 #endif /* CONTIKI_TARGET_WISMOTE */
