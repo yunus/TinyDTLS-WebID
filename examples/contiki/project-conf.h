@@ -42,7 +42,7 @@
 /*Scandium bundles whole package therefore, we need larger uip buffers.
  * If the messages were sent separately, the largest message size should be the target*/
 #undef UIP_CONF_BUFFER_SIZE
-#define UIP_CONF_BUFFER_SIZE 660
+#define UIP_CONF_BUFFER_SIZE 450
 
 #undef QUEUEBUF_CONF_NUM
 #define QUEUEBUF_CONF_NUM 8
@@ -61,8 +61,12 @@
 /* The below is important for wismote, otherwise
  * too may DIS messages (RPL DAG solicitation), normally it is 60
  */
-#undef RPL_DIS_INTERVAL_CONF
-#define RPL_DIS_INTERVAL_CONF 6000
+//#undef RPL_DIS_INTERVAL_CONF
+//#define RPL_DIS_INTERVAL_CONF 6000
+
+/*Openmote*/
+//#define DBG_CONF_USB 1
+#define WATCHDOG_CONF_ENABLE 0
 
 
 //#define UIP_DS6_CONF_NO_STATIC_ADDRESS 1
