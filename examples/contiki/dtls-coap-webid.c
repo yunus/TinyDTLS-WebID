@@ -38,7 +38,7 @@
 
 #define REST_RES_HELLO 1
 #define REMOTE_PORT     UIP_HTONS(5684)
-#define OWNER_NODE(ipaddr)  uip_ip6addr(ipaddr, 0xbbbb, 0, 0, 0, 0, 0, 0, 0x0100))
+#define OWNER_NODE(ipaddr)  uip_ip6addr(ipaddr, 0xbbbb, 0, 0, 0, 0, 0, 0, 0x0100)
 static uip_ipaddr_t owner_ipaddr;
 
 static dtls_context_t *dtls_context;
