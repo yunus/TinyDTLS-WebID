@@ -1449,7 +1449,7 @@ dtls_send_multi(dtls_context_t *ctx, dtls_peer_t *peer,
       dtls_ticks(&now);
       n->t = now + 2 * CLOCK_SECOND;
       n->retransmit_cnt = 0;
-      n->timeout = 2 * CLOCK_SECOND;
+      n->timeout = 10 * CLOCK_SECOND;
       n->peer = peer;
       n->epoch = (security) ? security->epoch : 0;
       n->type = type;
@@ -3977,7 +3977,7 @@ dtls_new_context(void *app_data) {
   dtls_ticks(&now);
 #ifdef WITH_CONTIKI
   /* FIXME: need something better to init PRNG here */
-  dtls_prng_init(now);
+  //dtls_prng_init(now);
 #else /* WITH_CONTIKI */
   if (!urandom) {
     dtls_emerg("cannot initialize PRNG\n");
@@ -4017,7 +4017,7 @@ dtls_new_context(void *app_data) {
     c->cookie_secret_age = now;
   else 
     goto error;
-  
+
   return c;
 
  error:
