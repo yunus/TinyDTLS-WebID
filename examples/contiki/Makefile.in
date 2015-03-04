@@ -70,4 +70,6 @@ connect-two-hosts-minimal-net:
 
 include ./Makefile.coap.include
 
+ifeq ("@WITH_CONTIKI@", "1")
 include $(CONTIKI)/Makefile.include
+endif
