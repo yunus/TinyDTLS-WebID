@@ -11,6 +11,14 @@ CFLAGS += -DUIP_CONF_IPV6_RPL=0 -DRPL_BORDER_ROUTER=0 -DLINKADDR_CONF_SIZE=8
 CFLAGS += -DUIP_CONF_IPV6=1 -DNETSTACK_CONF_WITH_IPV6=1  -DUIP_CONF_RPL=0 -DWITH_UIP6=1
 endif
 
+ifeq ($(TARGET), openmote)
+CFLAGS += -DWATCHDOG_CONF_ENABLE=0 -DRF_CHANNEL=20
+endif
+
+ifeq ($(TARGET), cc2538dk)
+CFLAGS += -DWATCHDOG_CONF_ENABLE=0 
+endif
+
 # usually, you should not need changing anything beyond this line
 ########################################################################
 
