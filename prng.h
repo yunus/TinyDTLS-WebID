@@ -76,7 +76,7 @@ dtls_prng_init(unsigned short seed) {
   /* random_init() messes with the radio interface of the CC2538 and
    * therefore must not be called after the radio has been
    * initialized. */
-#ifndef CONTIKI_TARGET_CC2538DK
+#if !defined CONTIKI_TARGET_CC2538DK && !defined CONTIKI_TARGET_OPENMOTE
 	random_init(seed);
 #endif
 }

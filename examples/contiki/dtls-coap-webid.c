@@ -177,8 +177,9 @@ get_ecdsa_key(struct dtls_context_t *ctx,
   *result = &ecdsa_key;
   return 0;
 }
-
-
+#ifdef DTLS_WEBID
+char webid_query[200];
+#endif /* DTLS_WEBID */
 
 static int
 verify_ecdsa_key(struct dtls_context_t *ctx,
@@ -198,7 +199,7 @@ verify_ecdsa_key(struct dtls_context_t *ctx,
 
   /* FIXME: INSTEAD of URI comparison, the certificate of the server should be CHECKED!!!!*/
   if (strcmp((const char*)webid_uri,"example.org/owner_webid/") != 0 ){
-	  char query[200];
+
 	  session_auth_t *s;
 
 	  s= memb_alloc(&session_mem);
@@ -212,9 +213,9 @@ verify_ecdsa_key(struct dtls_context_t *ctx,
 	  memcpy(s->uri,webid_uri,webid_uri_size);
 	  list_add(session_table,s);
 
-	  sprintf(query,"x=%.*s&y=%.*s&uri=%.*s",key_size,(const char *)other_pub_x,key_size,(const char *)other_pub_y,webid_uri_size,(const char *)webid_uri);
-	  PRINTF("dtls-webid: delegating -%s- \n",query);
-	  process_post_synch(&coaps_delegator,delegation_event, query);
+	  sprintf(webid_query,"x=%.*s&y=%.*s&uri=%.*s",key_size,(const char *)other_pub_x,key_size,(const char *)other_pub_y,webid_uri_size,(const char *)webid_uri);
+	  PRINTF("dtls-webid: delegating -%s- \n",webid_query);
+	  process_post_synch(&coaps_delegator,delegation_event, webid_query);
 
 	  return WAIT_AUTHORIZATION;
   }
@@ -288,6 +289,7 @@ send_to_peer(struct dtls_context_t *ctx,
 
 
 /*-----------------------------------------------------------------------------------*/
+#if WITH_DTLS_COAP
 void
 coap_send_message(uip_ipaddr_t *addr, uint16_t port, uint8_t *data, uint16_t length)
 {
@@ -299,6 +301,7 @@ coap_send_message(uip_ipaddr_t *addr, uint16_t port, uint8_t *data, uint16_t len
 
   dtls_write(dtls_context, &session, data, length);
 }
+#endif /* WITH_DTLS_COAP */
 /*-----------------------------------------------------------------------------------*/
 static int
 read_from_peer(struct dtls_context_t *ctx,
@@ -318,7 +321,6 @@ coap_handle_receive()
 {
   session_t session;
 
-  if(uip_newdata()) {
     dtls_session_init(&session);
     uip_ipaddr_copy(&session.addr, &UIP_IP_BUF->srcipaddr);
     /*FIXME: Pretty nasty fix to find the address of the delegation server.
@@ -327,7 +329,7 @@ coap_handle_receive()
     session.port = UIP_UDP_BUF->srcport;
 
     dtls_handle_message(dtls_context, &session, uip_appdata, uip_datalen());
-  }
+
 }
 
 /*---------------------------------------------------------------------------*/
@@ -429,7 +431,7 @@ PROCESS_THREAD(coaps_server_process, ev, data)
 
   while(1) {
     PROCESS_WAIT_EVENT();
-    if(ev == tcpip_event) {
+    if(ev == tcpip_event  && uip_newdata()) {
       coap_handle_receive();
     }else if (ev == PROCESS_EVENT_TIMER) {
         /* retransmissions are handled here */
@@ -494,11 +496,12 @@ PROCESS_THREAD(coaps_delegator, ev, data)
       PRINTF("dtls-webid: --Delegate-- with query -%s-\n",(char *)data);
 
       /* prepare request, TID is set by COAP_BLOCKING_REQUEST() */
-      coap_init_message(request, COAP_TYPE_CON, COAP_GET, 0 );
+      coap_init_message(request, COAP_TYPE_CON, COAP_GET, coap_get_mid() );
       coap_set_header_uri_path(request, "/verify");
 
       //coap_set_payload(request, (uint8_t *)(data+sizeof(uint8_t)), dtls_uint8_to_int(data));
-      coap_set_header_uri_query(request,(const char *)data);
+      PRINTF("Submitted query length:%d \n",coap_set_header_uri_query(request,(const char *)data));
+
 
       PRINT6ADDR(&owner_ipaddr);
       PRINTF("dtls-webid : %u\n", REMOTE_PORT);

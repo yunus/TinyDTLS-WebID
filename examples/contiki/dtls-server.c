@@ -216,13 +216,13 @@ static void
 dtls_handle_read(dtls_context_t *ctx) {
   session_t session;
 
-  if(uip_newdata()) {
+
     uip_ipaddr_copy(&session.addr, &UIP_IP_BUF->srcipaddr);
     session.port = UIP_UDP_BUF->srcport;
     session.size = sizeof(session.addr) + sizeof(session.port);
     
     dtls_handle_message(ctx, &session, uip_appdata, uip_datalen());
-  }
+
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -329,7 +329,7 @@ PROCESS_THREAD(udp_server_process, ev, data)
   print_local_addresses();
 
   if (!dtls_context) {
-    dtls_emerg("cannot create context\n");
+    PRINTF("cannot create context\n");
     PROCESS_EXIT();
   }
 
@@ -339,7 +339,7 @@ PROCESS_THREAD(udp_server_process, ev, data)
 
   while(1) {
     PROCESS_WAIT_EVENT();
-    if(ev == tcpip_event) {
+    if(ev == tcpip_event && uip_newdata()) {
       dtls_handle_read(dtls_context);
     }
 #if 0
@@ -351,6 +351,7 @@ PROCESS_THREAD(udp_server_process, ev, data)
 #endif
   }
 
+   PRINTF("DTLS process stops\n");
   PROCESS_END();
 }
 /*---------------------------------------------------------------------------*/

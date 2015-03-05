@@ -2697,7 +2697,7 @@ check_webid_exchange(dtls_context_t *ctx,
 
   unsigned char webid_uri[len];
   memcpy(webid_uri,config->keyx.ecdsa.webid_uri.webid_uri,len);
-  dtls_debug("dtls-webid: The WebID URI is |%s| with length:%u\n",webid_uri,len);
+  dtls_debug("dtls-webid: The WebID URI is |%.s| with length:%u\n",len,webid_uri,len);
   return 0;
 }
 #endif /* DTLS_WEBID */
@@ -3977,7 +3977,7 @@ dtls_new_context(void *app_data) {
   dtls_ticks(&now);
 #ifdef WITH_CONTIKI
   /* FIXME: need something better to init PRNG here */
-  //dtls_prng_init(now);
+  dtls_prng_init(now);
 #else /* WITH_CONTIKI */
   if (!urandom) {
     dtls_emerg("cannot initialize PRNG\n");
